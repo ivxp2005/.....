@@ -1,0 +1,108 @@
+==================== SERVER ====================
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<sys/types.h>
+#include<sys/socket.h>
+#include<string.h>
+#include<netinet/in.h>
+#include<arpa/inet.h>
+#include<unistd.h>
+
+#define BUF_SIZE 2000
+#define CLADDR_LEN 100
+
+void main()
+{
+    struct sockaddr_in serveraddr, clientaddr;
+    int serversocket, len, newserversocket, port;
+    char buffer[BUF_SIZE];
+    pid_t childpid;
+    char caddr[CLADDR_LEN];
+
+    serversocket = socket(AF_INET, SOCK_STREAM, 0);
+    printf("Socket created...\n");
+    bzero((char*)&serveraddr, sizeof(serveraddr));
+    serveraddr.sin_family = AF_INET;
+    printf("Enter the port: ");
+    scanf("%d", &port);
+    serveraddr.sin_port = htons(port);
+    serveraddr.sin_addr.s_addr = INADDR_ANY;
+
+    bind(serversocket, (struct sockaddr*)&serveraddr, sizeof(serveraddr));
+    printf("Binding done...\n");
+
+    listen(serversocket, 5);
+    printf("Waiting for connections...\n");
+
+    for(;;)
+    {
+        len = sizeof(clientaddr);
+        newserversocket = accept(serversocket, (struct sockaddr*)&clientaddr, &len);
+        printf("Connection accepted...\n");
+
+        inet_ntop(AF_INET, &(clientaddr.sin_addr), caddr, CLADDR_LEN);
+
+        if((childpid = fork()) == 0)
+        {
+            close(serversocket);
+
+            for(;;)
+            {
+                bzero(buffer, BUF_SIZE);
+                recv(newserversocket, buffer, BUF_SIZE, 0);
+                printf("Received from %s: %s\n", caddr, buffer);
+
+                printf("Enter message to client: ");
+                fgets(buffer, BUF_SIZE, stdin);
+                send(newserversocket, buffer, BUF_SIZE, 0);
+                printf("Sent to %s: %s\n", caddr, buffer);
+            }
+        }
+        close(newserversocket);
+    }
+}
+
+
+==================== CLIENT ====================
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<sys/types.h>
+#include<sys/socket.h>
+#include<string.h>
+#include<netinet/in.h>
+#include<netdb.h>
+#include<unistd.h>
+
+#define BUF_SIZE 2000
+
+void main()
+{
+    struct sockaddr_in serveraddr;
+    int clientsocket, port;
+    char buffer[BUF_SIZE];
+
+    clientsocket = socket(AF_INET, SOCK_STREAM, 0);
+    printf("Socket created...\n");
+    bzero((char*)&serveraddr, sizeof(serveraddr));
+    serveraddr.sin_family = AF_INET;
+    printf("Enter the port: ");
+    scanf("%d", &port);
+    serveraddr.sin_port = htons(port);
+    serveraddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+    connect(clientsocket, (struct sockaddr*)&serveraddr, sizeof(serveraddr));
+    printf("Connected to server...\n");
+
+    bzero(buffer, BUF_SIZE);
+    printf("Enter your message: ");
+
+    while(fgets(buffer, BUF_SIZE, stdin) != NULL)
+    {
+        send(clientsocket, buffer, BUF_SIZE, 0);
+        recv(clientsocket, buffer, BUF_SIZE, 0);
+        fputs(buffer, stdout);
+        printf("\n");
+    }
+}
